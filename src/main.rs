@@ -5,6 +5,7 @@ pub mod parser;
 use parser::*;
 use std::env;
 
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     println!("ARGS: {}\n", args.len());
