@@ -8,6 +8,7 @@ pub fn parse(tokens: Vec<Token>) -> Vec<Node> {
 
     while tokens_iter.peek().is_some() {
         if let Some(node) = parse_statement(&mut tokens_iter) {
+            if let Node::Expr(e) = node { continue; }
             node_vec.push(node);
         } 
         // else {
@@ -27,6 +28,12 @@ fn parse_statement(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Node> {
                     if let Some(body) = parse_statement(tokens) {
                         return Some(Node::IfStatement(condition, Box::new(body)));
                     }
+                }
+            },
+            Token::Keyword(ref kw) if kw == "out" => {
+                tokens.next();
+                if let Some(e) = parse_expression(tokens) {
+                    return Some(Node::Out(e));
                 }
             },
             Token::DTypeToken(ref dt) => {
@@ -101,6 +108,7 @@ pub enum Node {
     VarDec(DataType, VarName, Expr),
     IfStatement(Expr, Box<Node>),
     ElseStatement(Box<Node>),
+    Out(Expr),
     Expr(Expr),
 }
 
