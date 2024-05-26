@@ -1,5 +1,7 @@
-int a=0
-int b=0
+int a = 0 
+int b = 0
+
+a = b
 
 out a > b
 out a + b
@@ -9,8 +11,10 @@ read b
 
 if a > b
     out "a is bigger" + " :D"
-elif a == b
+fi
+if a == b
     out "they are eaqual"
-else
+fi
+if a < b
     out "a is smaller"
 fi

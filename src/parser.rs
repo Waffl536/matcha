@@ -8,65 +8,101 @@ pub fn parse(tokens: Vec<Token>) -> Vec<Node> {
 
     while tokens_iter.peek().is_some() {
         if let Some(node) = parse_statement(&mut tokens_iter) {
-            if let Node::Expr(e) = node { continue; }
             node_vec.push(node);
         } 
-        // else {
-        //     panic!("Unexpected token while parsing: ");
-        // }
+        else {
+            panic!("Unexpected token: {:?}", tokens_iter.peek().cloned());
+        }
     }
 
     node_vec
 }
 
-fn parse_statement(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Node> {
-    if let Some(token) = tokens.peek().cloned() {
+fn parse_statement(tokens_iter: &mut Peekable<IntoIter<Token>>) -> Option<Node> {
+    if let Some(token) = tokens_iter.peek().cloned() {
         match token {
             Token::Keyword(ref kw) if kw == "if" => {
-                tokens.next();
-                if let Some(condition) = parse_expression(tokens) {
-                    if let Some(body) = parse_statement(tokens) {
-                        return Some(Node::IfStatement(condition, Box::new(body)));
+                tokens_iter.next();
+                if let Some(condition) = parse_expression(tokens_iter) {
+                    let mut node_vec = Vec::new();
+                    while tokens_iter.peek().is_some() {
+                        if let Some(node) = parse_statement(tokens_iter) {
+                            if let Node::Expr(e) = node { continue; }
+                            if let Node::Fi = node { break; }
+                            // if let Node::ElseStatement(v) = node { 
+                            //     break; 
+                            // }
+                            node_vec.push(node);
+                            
+                        } 
+                        else {
+                            panic!("Unexpected token: {:?}", tokens_iter.peek().cloned());
+                        }
                     }
+                    
+                    return Some(Node::IfStatement(condition, node_vec));
                 }
             },
+            // Token::Keyword(ref kw) if kw == "else" => {
+            //     tokens_iter.next();
+            //     let mut node_vec = Vec::new();
+            //     while tokens_iter.peek().is_some() {
+            //         if let Some(node) = parse_statement(tokens_iter) {
+            //             if let Node::Expr(e) = node { continue; }
+            //             if let Node::Fi = node { break; }
+            //             node_vec.push(node);
+            //         } 
+            //         // else {
+            //         //     panic!("Unexpected token: {:?}", tokens_iter.peek().cloned());
+            //         // }
+            //     }
+                
+            //     return Some(Node::ElseStatement(node_vec));
+            // },
+            Token::Keyword(ref kw) if kw == "fi" => {
+                tokens_iter.next();
+                return Some(Node::Fi);
+            },
             Token::Keyword(ref kw) if kw == "out" => {
-                tokens.next();
-                if let Some(e) = parse_expression(tokens) {
+                tokens_iter.next();
+                if let Some(e) = parse_expression(tokens_iter) {
                     return Some(Node::Out(e));
                 }
             },
+            Token::Keyword(ref kw) if kw == "read" => {
+                tokens_iter.next();
+                if let Some(e) = parse_expression(tokens_iter) {
+                    return Some(Node::Read(e));
+                }
+            },
             Token::DTypeToken(ref dt) => {
-                tokens.next();
-                if let Some(Token::Id(var_name)) = tokens.next() {
-                    if let Some(Token::Op(op)) = tokens.peek().cloned() {
+                tokens_iter.next();
+                if let Some(Token::Id(var_name)) = tokens_iter.next() {
+                    if let Some(Token::Op(op)) = tokens_iter.peek().cloned() {
                         if op == "=" {
-                            tokens.next();
-                            if let Some(init_value) = parse_expression(tokens) {
+                            tokens_iter.next();
+                            if let Some(init_value) = parse_expression(tokens_iter) {
                                 return Some(Node::VarDec(dt.clone(), VarName(var_name), init_value));
                             }
                         }
                     }
                 }
             },
-            _ => return parse_expression(tokens).map(Node::Expr),
+            _ => return parse_expression(tokens_iter).map(Node::Expr),
         }
     }
     None
 }
 
-fn parse_expression(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
-    parse_term(tokens)
-}
-
-fn parse_term(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
-    let mut left = parse_factor(tokens)?;
-
-    while let Some(token) = tokens.peek().cloned() {
+fn parse_expression(tokens_iter: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
+    let mut left = parse_factor(tokens_iter)?;
+    let binary = ["=", "+", "-", "*", "/", ">", "<", "==", "||", "&&"];
+    let unary = ["!", "++", "--"];
+    while let Some(token) = tokens_iter.peek().cloned() {
         match token {
-            Token::Op(ref op) if op == "+" || op == "-"|| op == "==" => {
-                let op = tokens.next().unwrap();
-                let right = parse_factor(tokens)?;
+            Token::Op(ref op) if binary.into_iter().any(|i| i==op) => {
+                let op = tokens_iter.next().unwrap();
+                let right = parse_factor(tokens_iter)?;
                 left = Expr::BinaryOp(Box::new(left), op, Box::new(right));
             },
             _ => break,
@@ -76,20 +112,20 @@ fn parse_term(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
     Some(left)
 }
 
-fn parse_factor(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
-    let token = tokens.next()?;
+fn parse_factor(tokens_iter: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
+    let token = tokens_iter.next()?;
     match token {
-        Token::Literal(dt, lv) => Some(Expr::Literal(dt, lv)),
+        Token::Literal(lv) => Some(Expr::Literal(lv)),
         Token::Id(id) => Some(Expr::Var(VarName(id))),
-        Token::Op(ref op) if op == "(" => {
-            let expr = parse_expression(tokens)?;
-            if let Some(Token::Op(ref op)) = tokens.next() {
-                if op == ")" {
-                    return Some(expr);
-                }
-            }
-            None
-        },
+        // Token::Op(ref op) if op == "(" => {
+        //     let expr = parse_expression(tokens_iter)?;
+        //     if let Some(Token::Op(ref op)) = tokens_iter.next() {
+        //         if op == ")" {
+        //             return Some(expr);
+        //         }
+        //     }
+        //     None
+        // },
         _ => None,
     }
 }
@@ -98,23 +134,21 @@ fn parse_factor(tokens: &mut Peekable<IntoIter<Token>>) -> Option<Expr> {
 pub struct VarName(String);
 
 #[derive(Debug)]
-pub enum Value {
-    LitValue(DataType, LitValue),
-    VarValue(VarName),
-}
-
-#[derive(Debug)]
 pub enum Node {
+    Block(Vec<Node>),
     VarDec(DataType, VarName, Expr),
-    IfStatement(Expr, Box<Node>),
-    ElseStatement(Box<Node>),
+    IfStatement(Expr, Vec<Node>),
+    ElifStatement(Expr, Vec<Node>),
+    ElseStatement(Vec<Node>),
+    Fi,
     Out(Expr),
+    Read(Expr),
     Expr(Expr),
 }
 
 #[derive(Debug)]
 pub enum Expr {
-    Literal(DataType, LitValue),
+    Literal(LitValue),
     Var(VarName),
     BinaryOp(Box<Expr>, Token, Box<Expr>),
 }

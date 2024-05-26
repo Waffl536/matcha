@@ -1,16 +1,24 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
+const operators: [&str; 11] = ["||", "&&", "==", "=", "+", "-", "*", "/", ">", "<", "!" ];
+const datatypes: [&str; 3]  = ["str", "int", "bool"];
+const keywords : [&str; 8]  = ["else", "elif", "if", "fi", "true", "false", "out", "read"];
+
 pub fn lex(code: String) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut chars = code.chars().peekable();
 
     while let Some(&ch) = chars.peek() {
 
-        if let Some(symbol) = get_symbol(&mut chars) {
-            tokens.push(Token::Symbol(symbol));
+        if ch == '"' {
+            tokens.push(Token::Literal(LitValue::String(get_string(&mut chars))));
             continue;
         }
+        // if let Some(symbol) = get_symbol(&mut chars) {
+        //     tokens.push(Token::Symbol(symbol));
+        //     continue;
+        // }
 
         if ch.is_whitespace() {
             chars.next();
@@ -24,10 +32,10 @@ pub fn lex(code: String) -> Vec<Token> {
 
         if let Some(keyword) = get_keyword(&mut chars) {
             if keyword == "true"{
-                tokens.push(Token::Literal(DataType::Boolean, LitValue::BoolV(true)));
+                tokens.push(Token::Literal(LitValue::Bool(true)));
             }
             else if keyword == "false"{
-                tokens.push(Token::Literal(DataType::Boolean, LitValue::BoolV(false)));
+                tokens.push(Token::Literal(LitValue::Bool(false)));
             }
             else {
                 tokens.push(Token::Keyword(keyword));
@@ -48,9 +56,11 @@ pub fn lex(code: String) -> Vec<Token> {
 
         if ch.is_numeric() {
             let number = get_number(&mut chars);
-            tokens.push(Token::Literal(DataType::Integer, LitValue::IntV(number)));
+            tokens.push(Token::Literal(LitValue::Int(number)));
             continue;
         }
+
+        
 
         panic!("Unknown symbol: {}", ch);
     }
@@ -63,11 +73,11 @@ fn get_remaining_chars_as_str(chars: &Peekable<Chars>) -> String {
 }
 
 fn get_operator(chars: &mut Peekable<Chars>) -> Option<String> {
-    let operators = ["=", "+", "-", "*", "/", ">", "<", "==", "not", "or", "and"];
     let remaining_chars = get_remaining_chars_as_str(chars);
 
     for &op in &operators {
-        if remaining_chars.starts_with(op) && (op.len() == remaining_chars.len() || remaining_chars.chars().nth(op.len()).unwrap().is_whitespace()){
+        
+        if remaining_chars.starts_with(op){
             for _ in 0..op.len() {
                 chars.next();
             }
@@ -77,19 +87,18 @@ fn get_operator(chars: &mut Peekable<Chars>) -> Option<String> {
     None
 }
 
-fn get_symbol(chars: &mut Peekable<Chars>) -> Option<String> {
-    let symbols = ["\n"];
-    if let Some(&ch) = chars.peek() {
-        if symbols.contains(&ch.to_string().as_str()) {
-            chars.next();
-            return Some(ch.to_string());
-        }
-    }
-    None
-}
+// fn get_symbol(chars: &mut Peekable<Chars>) -> Option<String> {
+//     let symbols = ["\n"];
+//     if let Some(&ch) = chars.peek() {
+//         if symbols.contains(&ch.to_string().as_str()) {
+//             chars.next();
+//             return Some(ch.to_string());
+//         }
+//     }
+//     None
+// }
 
 fn get_keyword(chars: &mut Peekable<Chars>) -> Option<String> {
-    let keywords = ["else", "elif", "if", "fi", "true", "false", "out", "in"];
     let remaining_chars = get_remaining_chars_as_str(chars);
 
     for &kw in &keywords {
@@ -104,7 +113,6 @@ fn get_keyword(chars: &mut Peekable<Chars>) -> Option<String> {
 }
 
 fn get_datatype(chars: &mut Peekable<Chars>) -> Option<DataType> {
-    let datatypes = ["int", "bool"];
     let remaining_chars = get_remaining_chars_as_str(chars);
 
     for &dt in &datatypes {
@@ -147,19 +155,36 @@ fn get_number(chars: &mut Peekable<Chars>) -> i64 {
     num_str.parse().expect("Invalid number")
 }
 
+fn get_string(chars: &mut Peekable<Chars>) -> String {
+    chars.next();
+    let mut str_v = String::new();
+    while let Some(&ch) = chars.peek() {
+        if ch != '"' {
+            str_v.push(ch);
+            chars.next();
+        } else {
+            chars.next();
+            break;
+        }
+    }
+    str_v
+}
+
 #[derive(Debug)]
 #[derive(Clone)]
 pub enum DataType {
     Integer,
     Boolean,
+    String,
     // Add other variants as needed
 }
 
 #[derive(Debug)]
 #[derive(Clone)]
 pub enum LitValue {
-    IntV(i64),
-    BoolV(bool)
+    Int(i64),
+    Bool(bool),
+    String(String)
 }
 
 #[derive(Clone)]
@@ -169,6 +194,6 @@ pub enum Token {
     Id(String),
     Symbol(String),
     Op(String),
-    Literal(DataType, LitValue),
+    Literal(LitValue),
     DTypeToken(DataType)
 }
